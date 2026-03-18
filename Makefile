@@ -17,7 +17,7 @@ else
 endif
 
 #files
-SRC = src/main.cpp src/TunInterface.cpp
+SRC = src/main.cpp src/TunInterface.cpp src/UdpSocket.cpp
 OBJ = $(SRC:.cpp=.o)
 TARGET = build/vpn_app
 

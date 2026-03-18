@@ -109,7 +109,7 @@ int TunInterface::allocate(std::string devName){
 
   //here the tun name is provided 
   if(!devName.empty()){
-    strncpy(ifr.ifr_name,deName.c_str(),IFNAMSIZ);
+    strncpy(ifr.ifr_name,devName.c_str(),IFNAMSIZ);
   }
 
   if(ioctl(fd,TUNSETIFF, (void *)&ifr)<0){
