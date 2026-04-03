@@ -31,7 +31,7 @@ bool UdpSocket::bindPort(int port){
        return false;
     }
 
-    std::cout<<"UDP socket bound to port"<<port<<std::endl;
+    std::cout<<"UDP socket bound to port "<<port<<std::endl;
     return true;
 }
 
@@ -51,13 +51,16 @@ void UdpSocket::send(const char *data,size_t size){
 }
 
 int UdpSocket::receive(char *buffer, size_t size){
-  struct sockaddr_in sender;
-  socklen_t len = sizeof(sender);
+  struct sockaddr_in senderAddr;
+  socklen_t len = sizeof(senderAddr);
   
   //receive from anyone and store who send it in 'sender'
-  int n = recvfrom(sock, buffer,size,0,(struct sockaddr*)&sender,&len);
+  int n = recvfrom(sock, buffer,size,0,(struct sockaddr*)&senderAddr,&len);
 
   //optional peerAddr can be updated here
+  if(n>0){
+    peerAddr = senderAddr;
+  }
   return n;
 }
 
