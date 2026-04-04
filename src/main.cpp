@@ -1,12 +1,15 @@
 #include "../include/TunInterface.h"
 #include "../include/UdpSocket.h"
 #include "../include/HybridKEM.h"
+#include "../include/AesGcm.h"
+#include <memory>
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <cstring>
 #include <sys/select.h> //require for handling of multiple inputs
                         //making tunnel and handling udpSocket
+
 
 /* used in phase of phase 1
   void printHex(const char *buffer, ssize_t len){
@@ -35,12 +38,15 @@ void printSecretSnippet(const std::vector<uint8_t>& secret){
 }
 
 int main(){
-  std::cout<<" -- Hybrid Post-Quanum VPN (Phase 2) --"<<std::endl;
+  std::cout<<" -- Hybrid Post-Quanum VPN (Phase 4: Encrypted Tunnel) --"<<std::endl;
 
   TunInterface tun;
   UdpSocket udp;
   HybridKEM kem;
   std::vector<uint8_t> vpn_shared_secret;
+
+  // declaring the AES engine pointer but keeping it empty(null ptr)
+  std::unique_ptr<AesGcm> aes_engine = NULL;
 
   if(tun.allocate()<0){
 
@@ -83,6 +89,9 @@ int main(){
         std::vector<uint8_t> ct(buf+1,buf+n);//extracting everything after the tag
         vpn_shared_secret = kem.decapsulate(ct);
         printSecretSnippet(vpn_shared_secret);
+
+        // initializing server's AES engine with the secret
+        aes_engine = std::make_unique<AesGcm>(vpn_shared_secret);
     }
   }
   else{
@@ -113,6 +122,10 @@ int main(){
         udp.send(reinterpret_cast<const char*>(msg.data()),msg.size());
 
         printSecretSnippet(vpn_shared_secret);
+
+
+        // initializing client's AES engine with the secret
+        aes_engine = std::make_unique<AesGcm>(vpn_shared_secret);
     }
   }
 
@@ -156,20 +169,47 @@ while(true){
   //(tagging with 3)
   if(FD_ISSET(tun.getFd(),&readFDs)){
     ssize_t n = tun.readPacket(buf+1,sizeof(buf)-1);
-    if(n>0){
-      buf[0] = 3;
-      udp.send(buf,n+1);
+
+    // replacing the old send logic with encryption
+    if(n>0 && aes_engine){
+        // taking raw os network packing
+      std::vector<uint8_t> plaintext(buf,buf+n);
+
+      //encrypting it
+      std::vector<uint8_t> ciphertext = aes_engine->encrypt(plaintext);
+
+      //prepend protocol tag(3) and send it over UDP
+      std::vector<uint8_t> secure_packet;
+      secure_packet.push_back(3);
+      secure_packet.insert(secure_packet.end(),ciphertext.begin(),ciphertext.end());
+
+      udp.send(reinterpret_cast<const char*>(secure_packet.data()),secure_packet.size());
     }
+
   }
 
   //case 2 Data arrived from network(UDP)-> write to kernal(TUN)
   if(FD_ISSET(udp.getFd(),&readFDs)){
     ssize_t n = udp.receive(buf,sizeof(buf));
-    if(n>0 && buf[0]==3){
-      tun.writePacket(buf+1,n-1);
+
+    if(n>0 && buf[0] == 3 && aes_engine){
+      //extract everything after tag3
+      std::vector<uint8_t> ciphertext(buf+1,buf+n);
+
+      try{
+        //decrypting it
+        std::vector<uint8_t> plaintext = aes_engine->decrypt(ciphertext);
+
+        //inject the decrypted packet back into the local OS
+        tun.writePacket(reinterpret_cast<char*>(plaintext.data()),plaintext.size());
+      } 
+       catch(const std::exception& e){
+         std::cerr<<"\n[SECURITY WARNING] Dropped invalid packet: "<<e.what()<<std::endl;
+       }
     }
   }
-}
+
+ }
 
 return 0;
 

@@ -23,7 +23,7 @@ else
 endif
 
 #files
-SOURCES = src/main.cpp src/TunInterface.cpp src/UdpSocket.cpp src/HybridKEM.cpp
+SOURCES = src/main.cpp src/TunInterface.cpp src/UdpSocket.cpp src/HybridKEM.cpp src/AesGcm.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 TARGET = build/vpn_app
 
