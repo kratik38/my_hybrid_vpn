@@ -140,7 +140,7 @@ int main(){
 #ifdef __APPLE__
   std::cout<<" sudo ifconfig "<<tunName<<" 10.0.0.1 10.0.0.2 up"<<std::endl;
 #elif __linux__
-  std::cout<<" sudo ip addr add 10.0.0.1/24 dev "<<tunName<<std::endl;
+  std::cout<<" sudo ip addr add 10.0.0.2/24 dev "<<tunName<<std::endl;
   std::cout<<" sudo ip link set up dev "<<tunName<<std::endl;
 #endif
 
@@ -168,7 +168,7 @@ while(true){
   //case 1 Data arrived from the kernal(TUN) -> send to UDP
   //(tagging with 3)
   if(FD_ISSET(tun.getFd(),&readFDs)){
-    ssize_t n = tun.readPacket(buf+1,sizeof(buf)-1);
+    ssize_t n = tun.readPacket(buf,sizeof(buf));
 
     // replacing the old send logic with encryption
     if(n>0 && aes_engine){
