@@ -172,8 +172,19 @@ while(true){
 
     // replacing the old send logic with encryption
     if(n>0 && aes_engine){
+
+      int offset = 0;
+
+      //macos PI Header stripper (apple gives us 4 extra bytes we don't want)
+       #ifdef __APPLE__
+       if(n>4 && buf[0] == 0x00 && buf[3]== 0x02){
+         offset = 4; // skip the apple header so we only encrypt the pure id packet
+       }
+       #endif
+
+
         // taking raw os network packing
-      std::vector<uint8_t> plaintext(buf,buf+n);
+      std::vector<uint8_t> plaintext(buf + offset,buf+n);
 
       //encrypting it
       std::vector<uint8_t> ciphertext = aes_engine->encrypt(plaintext);
@@ -199,6 +210,20 @@ while(true){
       try{
         //decrypting it
         std::vector<uint8_t> plaintext = aes_engine->decrypt(ciphertext);
+
+        // macos pi header injector(apple requires these 4 bytes to accept the packet)
+        #ifdef __APPLE__
+        if(plaintext.size() >0 && plaintext[0] == 0x45){// if it is an ipv4 a packet
+            std::vector<uint8_t> pi_header = {0x00,0x00,0x00,0x02};
+            pi_header.insert(pi_header.end(),plaintext.begin(),plaintext.end());
+            tun.writePacket(reinterpret_cast<char*>(pi_header.data()),pi_header.size());
+        } else{
+           tun.writePacket(reinterpret_cast<char*>(plaintext.data()),plaintext.size());
+        }
+        #else
+          // for linux just takes teh pure ip packet natively
+          tun.writePacket(reinterpret_cast<char*>(plaintext.data()),plaintext.size());
+        #endif
 
         //inject the decrypted packet back into the local OS
         tun.writePacket(reinterpret_cast<char*>(plaintext.data()),plaintext.size());
